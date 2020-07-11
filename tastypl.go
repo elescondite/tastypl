@@ -25,10 +25,10 @@ import (
 	"strings"
 	"time"
 
+	chart "github.com/Graeme22/go-chart"
+	"github.com/Graeme22/go-chart/util"
 	"github.com/golang/glog"
 	"github.com/shopspring/decimal"
-	chart "github.com/wcharczuk/go-chart"
-	"github.com/wcharczuk/go-chart/util"
 )
 
 type transaction struct {
@@ -53,6 +53,7 @@ type transaction struct {
 	// Various flags inferred from the transactions to help make things simpler.
 	option bool // or non-option (such as future/equity) if false
 	future bool // true if futures (or options on futures), else equity or index
+	small  bool // true if small exchange future (future must be true as well)
 	mtm    bool // mark-to-market daily settlement for futures
 	call   bool // or put if false
 	long   bool // or short if false
@@ -137,6 +138,23 @@ var (
 		"/6J":  decimal.RequireFromString("125000000"),
 		// Crypto
 		"/BTC": decimal.RequireFromString("5"),
+		// Small exchange (see also below for symbol parsing)
+		"/SPRE": decimal.RequireFromString("1"),
+		"/SM75": decimal.RequireFromString("1"),
+		"/SFX":  decimal.RequireFromString("1"),
+		"/S10Y": decimal.RequireFromString("1"),
+		"/SMGO": decimal.RequireFromString("1"),
+	}
+
+	// Small exchange symbols. Required for parsing underlying symbol to determine if
+	// it is a regular future or small exchange (they have different formats)
+	smallFuturesSymbols = []string{
+		"/SPRE",
+		"/SM75",
+		"/SFX",
+		// Coming soon...
+		"/S10Y",
+		"/SMGO",
 	}
 )
 
@@ -680,6 +698,7 @@ func (p *portfolio) parseTransaction(i int, rec []string, ytd *bool) *transactio
 		strike:      parseDecimal(rec[14]),
 		option:      option,
 		future:      strings.HasPrefix(instrument, "Future"),
+		small:       strings.HasPrefix(instrument, "Future") && isSmallFuture(rec[3]),
 		mtm:         mtm,
 		call:        call,
 		long:        long,
@@ -699,6 +718,15 @@ func (p *portfolio) parseTransaction(i int, rec []string, ytd *bool) *transactio
 		p.updateSettlementPrice(tx)
 	}
 	return tx
+}
+
+func isSmallFuture(u string) bool {
+	for _, s := range smallFuturesSymbols {
+		if strings.HasPrefix(u, s) {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *portfolio) updateSettlementPrice(tx *transaction) {
@@ -725,11 +753,18 @@ func (p *portfolio) updateSettlementPrice(tx *transaction) {
 // For a transction on an outright futures, return the notional amount of the
 // price at which the transaction was filled.
 func futuresNotional(tx *transaction) decimal.Decimal {
+	var contract string
+
 	if !tx.future {
 		glog.Fatalf("expected a futures transaction but got %s", tx)
 	}
 	points := tx.parsePrice()
-	contract := tx.underlying[:len(tx.underlying)-2]
+	if tx.small {
+		// Smalls have 2 digit year, regular have 1
+		contract = tx.underlying[:len(tx.underlying)-3]
+	} else {
+		contract = tx.underlying[:len(tx.underlying)-2]
+	}
 	pointValue, ok := futuresPoints[contract]
 	if !ok {
 		glog.Fatalf("Don't know how much a point of %s is worth in %s", contract, tx)
@@ -1131,7 +1166,12 @@ func (p *portfolio) PrintPositions() {
 			underlying := open.underlying
 			if open.future {
 				// Drop the month and year
-				underlying = underlying[:len(underlying)-2]
+				if open.small {
+					// Smalls have 2 digit year, regular have 1
+					underlying = underlying[:len(underlying)-3]
+				} else {
+					underlying = underlying[:len(underlying)-2]
+				}
 			}
 			pos, ok := perUnderlying[underlying]
 			if !ok {
