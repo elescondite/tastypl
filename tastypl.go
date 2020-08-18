@@ -145,6 +145,7 @@ var (
 		"/SFX":  decimal.RequireFromString("1"),
 		"/S10Y": decimal.RequireFromString("1"),
 		"/SMGO": decimal.RequireFromString("1"),
+		"/STIX": decimal.RequireFromString("1"), // 2020.08.24
 	}
 
 	// Small exchange symbols. Required for parsing underlying symbol to determine if
