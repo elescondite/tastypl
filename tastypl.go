@@ -118,6 +118,8 @@ var (
 		"/GC":  decimal.RequireFromString("100"),
 		"/MGC": decimal.RequireFromString("10"),
 		"/SI":  decimal.RequireFromString("5000"),
+		"/SIL": decimal.RequireFromString("1000"),
+		"/HG":  decimal.RequireFromString("25000"),
 		// Energy
 		"/CL": decimal.RequireFromString("1000"),
 		"/QM": decimal.RequireFromString("500"),
@@ -137,6 +139,8 @@ var (
 		"/6E":  decimal.RequireFromString("125000"),
 		"/M6E": decimal.RequireFromString("12500"),
 		"/6J":  decimal.RequireFromString("125000000"),
+		"/MJY":  decimal.RequireFromString("12500000"),
+		"/6M":	 decimal.RequireFromString("500000"),
 		// Crypto
 		"/BTC": decimal.RequireFromString("5"),
 		// Small exchange (see also below for symbol parsing)
@@ -157,6 +161,7 @@ var (
 		// Coming soon...
 		"/S10Y",
 		"/SMGO",
+		"/STIX"
 	}
 )
 
