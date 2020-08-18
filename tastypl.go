@@ -133,6 +133,7 @@ var (
 		"/6B":  decimal.RequireFromString("62500"),
 		"/M6B": decimal.RequireFromString("6250"),
 		"/6C":  decimal.RequireFromString("100000"),
+		"/MCD": decimal.RequireFromString("10000"),
 		"/6E":  decimal.RequireFromString("125000"),
 		"/M6E": decimal.RequireFromString("12500"),
 		"/6J":  decimal.RequireFromString("125000000"),
