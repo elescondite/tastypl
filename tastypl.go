@@ -139,8 +139,8 @@ var (
 		"/6E":  decimal.RequireFromString("125000"),
 		"/M6E": decimal.RequireFromString("12500"),
 		"/6J":  decimal.RequireFromString("125000000"),
-		"/MJY":  decimal.RequireFromString("12500000"),
-		"/6M":	 decimal.RequireFromString("500000"),
+		"/MJY": decimal.RequireFromString("12500000"),
+		"/6M":  decimal.RequireFromString("500000"),
 		// Crypto
 		"/BTC": decimal.RequireFromString("5"),
 		// Small exchange (see also below for symbol parsing)
@@ -161,7 +161,7 @@ var (
 		// Coming soon...
 		"/S10Y",
 		"/SMGO",
-		"/STIX"
+		"/STIX",
 	}
 )
 
