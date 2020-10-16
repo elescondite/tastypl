@@ -347,6 +347,10 @@ func parseDecimal(value string) decimal.Decimal {
 	if value == "" {
 		return decimal.Decimal{}
 	}
+	if value == "--" {
+		return decimal.Decimal{}
+	}
+
 	d, err := decimal.NewFromString(strings.Replace(value, ",", "", -1))
 	if err != nil {
 		glog.Fatal(err)
@@ -1480,7 +1484,7 @@ func (p *portfolio) PrintPL() {
 	}
 }
 
-func dumpChart(records [][]string, ytd, nofutures, ignoreacat bool) {
+func dumpChart(records [][]string, ytd, nofutures, ignoreacat bool, nocash bool) {
 	// We don't really have a good way to track stats step by step, so rebuild the
 	// portfolio by adding the transactions one by one for now.
 	portfolio := NewPortfolio(records[1:2], ytd, nofutures, ignoreacat) // Just the first transaction
@@ -1519,7 +1523,11 @@ func dumpChart(records [][]string, ytd, nofutures, ignoreacat bool) {
 		amount, _ = portfolio.premium.Float64()
 		premium = append(premium, amount)
 		amount, _ = portfolio.cash.Float64()
-		cash = append(cash, amount)
+		if nocash {
+			cash = append(cash, 0)
+		} else {
+			cash = append(cash, amount)
+		}
 	}
 
 	graph := chart.Chart{
@@ -1604,6 +1612,7 @@ func main() {
 	printPL := flag.Bool("printpl", false, "print realized P&L per underlying")
 	positions := flag.Bool("positions", false, "print current positions")
 	chart := flag.Bool("chart", false, "create a chart of P&L")
+	chartNoCash := flag.Bool("chartnocash", false, "exclude cash from chart of P&L")
 	nofutures := flag.Bool("nofutures", false, "ignore all futures transactions")
 	ignoreacat := flag.Bool("ignoreacat", false, "ignore all ACAT transfers")
 	flag.Parse()
@@ -1629,7 +1638,7 @@ func main() {
 		portfolio.PrintPL()
 	}
 	if *chart {
-		dumpChart(records, *ytd, *nofutures, *ignoreacat)
+		dumpChart(records, *ytd, *nofutures, *ignoreacat, *chartNoCash)
 	}
 	if *positions {
 		portfolio.PrintPositions()
