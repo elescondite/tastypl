@@ -1612,17 +1612,91 @@ func dumpChart(records [][]string, ytd, nofutures, ignoreacat bool, nocash bool)
 	graph.Render(chart.PNG, rplPng)
 }
 
+func dumpDaily(records [][]string, ytd, nofutures, ignoreacat bool) {
+	// We don't really have a good way to track stats step by step, so rebuild the
+	// portfolio by adding the transactions one by one for now.
+	portfolio := NewPortfolio(records[1:2], ytd, nofutures, ignoreacat) // Just the first transaction
+	records = records[2:]
+
+	fmt.Println("Date,RealizedGrossTD,RealizedNetTD,Premium,Cash,NetLiq,TransfersTD,CommissionsTD,FeesTD,InterestTD,PutsTD,CallsTD,TradesTD,OpenPositions,OptionsNotionalSold,OptionsNotionalBought,EquityNotionalSold,EquityNotionalBought,FuturesNotionalSold,FuturesNotionalBought")
+	for i, record := range records {
+		portfolio.AddTransaction(record)
+		date, err := time.Parse(almostRFC3339, record[0])
+
+		if err != nil {
+			glog.Fatalf("record #%d, bad transaction date: %s", len(portfolio.transactions), err)
+		}
+		// keep processing transactions until we have a
+		// date change so that we have only one data point per day.
+		if i != len(records)-1 {
+			nextDate, err := time.Parse(almostRFC3339, records[i+1][0])
+			if err == nil && date.YearDay() == nextDate.YearDay() {
+				continue
+			}
+		}
+		// This is safe enough. All internal calcs are done with big ints so a quick float conversion
+		// will not introduce any rounding errors.
+		fRealizedGrossTD, _ := portfolio.rpl.Float64()
+		fRealizedNetTD, _ := portfolio.rpl.Add(portfolio.comms).Add(portfolio.fees).Add(portfolio.intrs).Float64()
+		fPremium, _ := portfolio.premium.Float64()
+		fCash, _ := portfolio.cash.Float64()
+		fNetLiq, _ := portfolio.cash.Sub(portfolio.premium).Float64()
+		fTransfersTD, _ := portfolio.moneyMov.Float64()
+		fCommissionsTD, _ := portfolio.comms.Float64()
+		fFeesTD, _ := portfolio.fees.Float64()
+		fInterestTD, _ := portfolio.intrs.Float64()
+		dPutsTD := portfolio.putsTraded
+		dCallsTD := portfolio.callsTraded
+		dTradesTD := portfolio.numTrades
+		dOpenPositions := len(portfolio.positions)
+		fOptionsNotionalSoldTD, _ := portfolio.optionsNotionalSold.Float64()
+		fOptionsNotionalBoughtTD, _ := portfolio.optionsNotionalBought.Float64()
+		fEquityNotionalSoldTD, _ := portfolio.equityNotionalSold.Float64()
+		fEquityNotionalBoughtTD, _ := portfolio.equityNotionalBought.Float64()
+		fFuturesNotionalSoldTD, _ := portfolio.futuresNotionalSold.Float64()
+		fFuturesNotionalBoughtTD, _ := portfolio.futuresNotionalBought.Float64()
+
+		fmt.Printf("%d-%02d-%02d,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%d,%d,%d,%d,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f\n",
+			date.Year(), date.Month(), date.Day(),
+			fRealizedGrossTD,
+			fRealizedNetTD,
+			fPremium,
+			fCash,
+			fNetLiq,
+			fTransfersTD,
+			fCommissionsTD,
+			fFeesTD,
+			fInterestTD,
+			dPutsTD,
+			dCallsTD,
+			dTradesTD,
+			dOpenPositions,
+			fOptionsNotionalSoldTD,
+			fOptionsNotionalBoughtTD,
+			fEquityNotionalSoldTD,
+			fEquityNotionalBoughtTD,
+			fFuturesNotionalSoldTD,
+			fFuturesNotionalBoughtTD)
+	}
+
+}
+
 func main() {
-	input := flag.String("input", "", "input csv file containing tastyworks transactions")
-	stats := flag.Bool("stats", true, "print overall statistics")
-	cumulative := flag.Bool("cumulative", true, "print cumulative statistics")
-	ytd := flag.Bool("ytd", false, "limit output to YTD transactions")
+	// Modes
+	stats := flag.Bool("stats", false, "print overall statistics")
 	printPL := flag.Bool("printpl", false, "print realized P&L per underlying")
 	positions := flag.Bool("positions", false, "print current positions")
 	chart := flag.Bool("chart", false, "create a chart of P&L")
+	daily := flag.Bool("daily", false, "create a CSV of daily balances")
+	cumulative := flag.Bool("cumulative", false, "print cumulative statistics")
+
+	// Modifiers
+	input := flag.String("input", "", "input csv file containing tastyworks transactions")
+	ytd := flag.Bool("ytd", false, "limit output to YTD transactions")
 	chartNoCash := flag.Bool("chartnocash", false, "exclude cash from chart of P&L")
 	nofutures := flag.Bool("nofutures", false, "ignore all futures transactions")
 	ignoreacat := flag.Bool("ignoreacat", false, "ignore all ACAT transfers")
+
 	flag.Parse()
 	if *input == "" {
 		glog.Fatal("-input flag required")
@@ -1636,6 +1710,12 @@ func main() {
 	}
 
 	portfolio := NewPortfolio(records[1:], *ytd, *nofutures, *ignoreacat)
+
+	if !*stats && !*printPL && !*positions && !*chart && !*daily && !*cumulative {
+		// By default just print stats
+		portfolio.PrintStats()
+		portfolio.PrintCumulativeStats()
+	}
 	if *stats {
 		portfolio.PrintStats()
 	}
@@ -1650,5 +1730,8 @@ func main() {
 	}
 	if *positions {
 		portfolio.PrintPositions()
+	}
+	if *daily {
+		dumpDaily(records, *ytd, *nofutures, *ignoreacat)
 	}
 }
