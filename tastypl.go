@@ -947,7 +947,7 @@ func (p *portfolio) purgeClosed(tx *transaction, pos *position) {
 	var stillOpen int
 	for _, open := range pos.opens {
 		if !open.qtyOpen.Equal(decimal.Zero) {
-			stillOpen += 1
+			stillOpen++
 		}
 	}
 	if stillOpen == 0 { // No position left for this underlying.
@@ -1493,6 +1493,7 @@ func dumpChart(records [][]string, ytd, nofutures, ignoreacat bool, nocash bool)
 	var adjRpl []float64
 	var premium []float64
 	var cash []float64
+	var netliq []float64
 	records = records[2:]
 	for i, record := range records {
 		//fmt.Println("----------------------------------->", record)
@@ -1528,11 +1529,13 @@ func dumpChart(records [][]string, ytd, nofutures, ignoreacat bool, nocash bool)
 		} else {
 			cash = append(cash, amount)
 		}
+		amount, _ = portfolio.cash.Sub(portfolio.premium).Float64()
+		netliq = append(netliq, amount)
 	}
 
 	graph := chart.Chart{
-		Width:  1400,
-		Height: 700,
+		Width:  1920,
+		Height: 1080,
 		XAxis: chart.XAxis{
 			Style:          chart.StyleShow(),
 			TickPosition:   chart.TickPositionUnderTick,
@@ -1571,9 +1574,9 @@ func dumpChart(records [][]string, ytd, nofutures, ignoreacat bool, nocash bool)
 				Name:    "Realized P&L",
 				XValues: xv,
 				YValues: rpl,
-				Style: chart.Style{
-					StrokeDashArray: []float64{3.0, 3.0},
-				},
+				//Style: chart.Style{
+				//	StrokeDashArray: []float64{3.0, 3.0},
+				//},
 			},
 			chart.TimeSeries{
 				Name:    "Adjusted Realized P&L",
@@ -1589,6 +1592,11 @@ func dumpChart(records [][]string, ytd, nofutures, ignoreacat bool, nocash bool)
 				Name:    "Cash on hand",
 				XValues: xv,
 				YValues: cash,
+			},
+			chart.TimeSeries{
+				Name:    "Net Liquidation",
+				XValues: xv,
+				YValues: netliq,
 			},
 		},
 	}
