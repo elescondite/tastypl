@@ -148,7 +148,9 @@ var (
 		"/SM75": decimal.RequireFromString("1"),
 		"/SFX":  decimal.RequireFromString("1"),
 		"/S10Y": decimal.RequireFromString("1"),
-		"/SMGO": decimal.RequireFromString("1"),
+		"/S2Y":  decimal.RequireFromString("1"), // 2021.02.22
+		"/S30Y": decimal.RequireFromString("1"), // 2021.02.22
+		"/SMGO": decimal.RequireFromString("1"), // TBA
 		"/STIX": decimal.RequireFromString("1"), // 2020.08.24
 	}
 
@@ -158,10 +160,12 @@ var (
 		"/SPRE",
 		"/SM75",
 		"/SFX",
-		// Coming soon...
 		"/S10Y",
-		"/SMGO",
 		"/STIX",
+		"/S2Y",
+		"/S30Y",
+		// Coming soon...
+		"/SMGO",
 	}
 )
 
@@ -1515,6 +1519,25 @@ func dumpChart(records [][]string, ytd, nofutures, ignoreacat bool, nocash bool)
 				continue
 			}
 		}
+		// Calculate equity
+		var prem decimal.Decimal
+		var neq uint                       // Number of equity positions
+		var equity decimal.Decimal         // Cost of equity
+		var equityDiscount decimal.Decimal // Adj. cost basis of equity acquired from options
+		for _, pos := range portfolio.positions {
+			for _, open := range pos.opens {
+				if open.option {
+					prem = prem.Add(open.avgPrice.Mul(open.qtyOpen))
+				} else if !open.future {
+					// Adjust for the number of shares actually still open
+					scale := open.qtyOpen.Div(open.quantity)
+					equity = equity.Add(open.value).Mul(scale)
+					equityDiscount = equityDiscount.Add(open.rpl).Mul(scale)
+					neq++
+				}
+			}
+		}
+
 		amount, _ := portfolio.rpl.Float64()
 		xv = append(xv, date)
 		rpl = append(rpl, amount)
@@ -1530,7 +1553,9 @@ func dumpChart(records [][]string, ytd, nofutures, ignoreacat bool, nocash bool)
 			cash = append(cash, amount)
 		}
 		amount, _ = portfolio.cash.Sub(portfolio.premium).Float64()
-		netliq = append(netliq, amount)
+		eq, _ := equity.Float64()
+		eqd, _ := equityDiscount.Float64()
+		netliq = append(netliq, amount-eq-eqd)
 	}
 
 	graph := chart.Chart{
@@ -1571,7 +1596,7 @@ func dumpChart(records [][]string, ytd, nofutures, ignoreacat bool, nocash bool)
 		},
 		Series: []chart.Series{
 			chart.TimeSeries{
-				Name:    "Realized P&L",
+				Name:    "Realized P&L (Gross)",
 				XValues: xv,
 				YValues: rpl,
 				//Style: chart.Style{
@@ -1579,7 +1604,7 @@ func dumpChart(records [][]string, ytd, nofutures, ignoreacat bool, nocash bool)
 				//},
 			},
 			chart.TimeSeries{
-				Name:    "Adjusted Realized P&L",
+				Name:    "Realized P&L (Net)",
 				XValues: xv,
 				YValues: adjRpl,
 			},
@@ -1618,7 +1643,7 @@ func dumpDaily(records [][]string, ytd, nofutures, ignoreacat bool) {
 	portfolio := NewPortfolio(records[1:2], ytd, nofutures, ignoreacat) // Just the first transaction
 	records = records[2:]
 
-	fmt.Println("Date,RealizedGrossTD,RealizedNetTD,Premium,Cash,NetLiq,TransfersTD,CommissionsTD,FeesTD,InterestTD,PutsTD,CallsTD,TradesTD,OpenPositions,OptionsNotionalSold,OptionsNotionalBought,EquityNotionalSold,EquityNotionalBought,FuturesNotionalSold,FuturesNotionalBought")
+	fmt.Println("Date,RealizedGrossTD,RealizedNetTD,Premium,Cash,NetLiq,TransfersTD,CommissionsTD,FeesTD,InterestTD,PutsTD,CallsTD,TradesTD,OpenPositions,OptionsNotionalSold,OptionsNotionalBought,EquityNotionalSold,EquityNotionalBought,FuturesNotionalSold,FuturesNotionalBought,Equity,EquityDiscount,EquityPositions")
 	for i, record := range records {
 		portfolio.AddTransaction(record)
 		date, err := time.Parse(almostRFC3339, record[0])
@@ -1634,13 +1659,36 @@ func dumpDaily(records [][]string, ytd, nofutures, ignoreacat bool) {
 				continue
 			}
 		}
+
+		// Calculate equity
+		var premium decimal.Decimal
+		var neq uint                       // Number of equity positions
+		var equity decimal.Decimal         // Cost of equity
+		var equityDiscount decimal.Decimal // Adj. cost basis of equity acquired from options
+		for _, pos := range portfolio.positions {
+			for _, open := range pos.opens {
+				if open.option {
+					premium = premium.Add(open.avgPrice.Mul(open.qtyOpen))
+				} else if !open.future {
+					// Adjust for the number of shares actually still open
+					scale := open.qtyOpen.Div(open.quantity)
+					equity = equity.Add(open.value).Mul(scale)
+					equityDiscount = equityDiscount.Add(open.rpl).Mul(scale)
+					neq++
+				}
+			}
+		}
 		// This is safe enough. All internal calcs are done with big ints so a quick float conversion
 		// will not introduce any rounding errors.
+		fEquity, _ := equity.Float64()
+		fEquityDiscount, _ := equityDiscount.Float64()
+		dEquities := neq
 		fRealizedGrossTD, _ := portfolio.rpl.Float64()
 		fRealizedNetTD, _ := portfolio.rpl.Add(portfolio.comms).Add(portfolio.fees).Add(portfolio.intrs).Float64()
 		fPremium, _ := portfolio.premium.Float64()
 		fCash, _ := portfolio.cash.Float64()
 		fNetLiq, _ := portfolio.cash.Sub(portfolio.premium).Float64()
+		fNetLiq = fNetLiq - fEquity - fEquityDiscount
 		fTransfersTD, _ := portfolio.moneyMov.Float64()
 		fCommissionsTD, _ := portfolio.comms.Float64()
 		fFeesTD, _ := portfolio.fees.Float64()
@@ -1656,7 +1704,7 @@ func dumpDaily(records [][]string, ytd, nofutures, ignoreacat bool) {
 		fFuturesNotionalSoldTD, _ := portfolio.futuresNotionalSold.Float64()
 		fFuturesNotionalBoughtTD, _ := portfolio.futuresNotionalBought.Float64()
 
-		fmt.Printf("%d-%02d-%02d,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%d,%d,%d,%d,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f\n",
+		fmt.Printf("%d-%02d-%02d,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%d,%d,%d,%d,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%d\n",
 			date.Year(), date.Month(), date.Day(),
 			fRealizedGrossTD,
 			fRealizedNetTD,
@@ -1676,9 +1724,11 @@ func dumpDaily(records [][]string, ytd, nofutures, ignoreacat bool) {
 			fEquityNotionalSoldTD,
 			fEquityNotionalBoughtTD,
 			fFuturesNotionalSoldTD,
-			fFuturesNotionalBoughtTD)
+			fFuturesNotionalBoughtTD,
+			fEquity,
+			fEquityDiscount,
+			dEquities)
 	}
-
 }
 
 func main() {
