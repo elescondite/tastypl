@@ -1637,13 +1637,42 @@ func dumpChart(records [][]string, ytd, nofutures, ignoreacat bool, nocash bool)
 	graph.Render(chart.PNG, rplPng)
 }
 
-func dumpDaily(records [][]string, ytd, nofutures, ignoreacat bool) {
+func dumpDaily(records [][]string, ytd, nofutures, ignoreacat bool, exportTD bool) {
+	// Store previous for calculating daily activity
+	var pfEquity float64
+	var pfEquityDiscount float64
+	var pdEquities int
+	var pfRealizedGrossTD float64
+	var pfRealizedNetTD float64
+	var pfPremium float64
+	var pfCash float64
+	var pfTransfersTD float64
+	var pfCommissionsTD float64
+	var pfFeesTD float64
+	var pfInterestTD float64
+	var pdPutsTD int64
+	var pdCallsTD int64
+	var pdTradesTD uint16
+	var pdOpenPositions int
+	var pfOptionsNotionalSoldTD float64
+	var pfOptionsNotionalBoughtTD float64
+	var pfEquityNotionalSoldTD float64
+	var pfEquityNotionalBoughtTD float64
+	var pfFuturesNotionalSoldTD float64
+	var pfFuturesNotionalBoughtTD float64
+
 	// We don't really have a good way to track stats step by step, so rebuild the
 	// portfolio by adding the transactions one by one for now.
 	portfolio := NewPortfolio(records[1:2], ytd, nofutures, ignoreacat) // Just the first transaction
 	records = records[2:]
 
-	fmt.Println("Date,RealizedGrossTD,RealizedNetTD,Premium,Cash,NetLiq,TransfersTD,CommissionsTD,FeesTD,InterestTD,PutsTD,CallsTD,TradesTD,OpenPositions,OptionsNotionalSold,OptionsNotionalBought,EquityNotionalSold,EquityNotionalBought,FuturesNotionalSold,FuturesNotionalBought,Equity,EquityDiscount,EquityPositions")
+	fmt.Print("Date,RealizedGross,RealizedNet,Premium,Cash,Transfers,Commissions,Fees,Interest,Puts,Calls,Trades,OpenPositions,Equity,EquityDiscount,EquityPositions")
+	fmt.Print(",OptionsNotionalSold,OptionsNotionalBought,EquityNotionalSold,EquityNotionalBought,FuturesNotionalSold,FuturesNotionalBought")
+	if exportTD {
+		fmt.Print(",RealizedGrossTD,RealizedNetTD,PremiumTD,CashTD,NetLiqTD,TransfersTD,CommissionsTD,FeesTD,InterestTD,PutsTD,CallsTD,TradesTD,OpenPositionsTD,EquityTD,EquityDiscountTD,EquityPositionsTD")
+		fmt.Print(",OptionsNotionalSoldTD,OptionsNotionalBoughtTD,EquityNotionalSoldTD,EquityNotionalBoughtTD,FuturesNotionalSoldTD,FuturesNotionalBoughtTD")
+	}
+	fmt.Println()
 	for i, record := range records {
 		portfolio.AddTransaction(record)
 		date, err := time.Parse(almostRFC3339, record[0])
@@ -1662,7 +1691,7 @@ func dumpDaily(records [][]string, ytd, nofutures, ignoreacat bool) {
 
 		// Calculate equity
 		var premium decimal.Decimal
-		var neq uint                       // Number of equity positions
+		var neq int                        // Number of equity positions
 		var equity decimal.Decimal         // Cost of equity
 		var equityDiscount decimal.Decimal // Adj. cost basis of equity acquired from options
 		for _, pos := range portfolio.positions {
@@ -1693,52 +1722,111 @@ func dumpDaily(records [][]string, ytd, nofutures, ignoreacat bool) {
 		fCommissionsTD, _ := portfolio.comms.Float64()
 		fFeesTD, _ := portfolio.fees.Float64()
 		fInterestTD, _ := portfolio.intrs.Float64()
+		// Metrics
 		dPutsTD := portfolio.putsTraded
 		dCallsTD := portfolio.callsTraded
 		dTradesTD := portfolio.numTrades
 		dOpenPositions := len(portfolio.positions)
+		// Notional
 		fOptionsNotionalSoldTD, _ := portfolio.optionsNotionalSold.Float64()
 		fOptionsNotionalBoughtTD, _ := portfolio.optionsNotionalBought.Float64()
 		fEquityNotionalSoldTD, _ := portfolio.equityNotionalSold.Float64()
 		fEquityNotionalBoughtTD, _ := portfolio.equityNotionalBought.Float64()
 		fFuturesNotionalSoldTD, _ := portfolio.futuresNotionalSold.Float64()
 		fFuturesNotionalBoughtTD, _ := portfolio.futuresNotionalBought.Float64()
-
-		fmt.Printf("%d-%02d-%02d,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%d,%d,%d,%d,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%d\n",
+		//
+		fmt.Printf("%d-%02d-%02d",
 			date.Year(), date.Month(), date.Day(),
-			fRealizedGrossTD,
-			fRealizedNetTD,
-			fPremium,
-			fCash,
-			fNetLiq,
-			fTransfersTD,
-			fCommissionsTD,
-			fFeesTD,
-			fInterestTD,
-			dPutsTD,
-			dCallsTD,
-			dTradesTD,
-			dOpenPositions,
-			fOptionsNotionalSoldTD,
-			fOptionsNotionalBoughtTD,
-			fEquityNotionalSoldTD,
-			fEquityNotionalBoughtTD,
-			fFuturesNotionalSoldTD,
-			fFuturesNotionalBoughtTD,
-			fEquity,
-			fEquityDiscount,
-			dEquities)
+		)
+
+		// Print daily activity
+		fmt.Printf(",%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%d,%d,%d,%d,%0.2f,%0.2f,%d,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f",
+			fRealizedGrossTD-pfRealizedGrossTD,
+			fRealizedNetTD-pfRealizedNetTD,
+			fPremium-pfPremium,
+			fCash-pfCash,
+			fTransfersTD-pfTransfersTD,
+			fCommissionsTD-pfCommissionsTD,
+			fFeesTD-pfFeesTD,
+			fInterestTD-pfInterestTD,
+			dPutsTD-pdPutsTD,
+			dCallsTD-pdCallsTD,
+			dTradesTD-pdTradesTD,
+			dOpenPositions-pdOpenPositions,
+			fEquity-pfEquity,
+			fEquityDiscount-pfEquityDiscount,
+			dEquities-pdEquities,
+			fOptionsNotionalSoldTD-pfOptionsNotionalSoldTD,
+			fOptionsNotionalBoughtTD-pfOptionsNotionalBoughtTD,
+			fEquityNotionalSoldTD-pfEquityNotionalSoldTD,
+			fEquityNotionalBoughtTD-pfEquityNotionalBoughtTD,
+			fFuturesNotionalSoldTD-pfFuturesNotionalSoldTD,
+			fFuturesNotionalBoughtTD-pfFuturesNotionalBoughtTD,
+		)
+
+		if exportTD {
+			fmt.Printf(",%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%d,%d,%d,%d,%0.2f,%0.2f,%d,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f",
+				fRealizedGrossTD,
+				fRealizedNetTD,
+				fPremium,
+				fCash,
+				fNetLiq,
+				fTransfersTD,
+				fCommissionsTD,
+				fFeesTD,
+				fInterestTD,
+				dPutsTD,
+				dCallsTD,
+				dTradesTD,
+				dOpenPositions,
+				fEquity,
+				fEquityDiscount,
+				dEquities,
+				fOptionsNotionalSoldTD,
+				fOptionsNotionalBoughtTD,
+				fEquityNotionalSoldTD,
+				fEquityNotionalBoughtTD,
+				fFuturesNotionalSoldTD,
+				fFuturesNotionalBoughtTD,
+			)
+		}
+		fmt.Println()
+		// Store previous for calculating daily activity
+		pfEquity = fEquity
+		pfEquityDiscount = fEquityDiscount
+		pdEquities = dEquities
+		pfRealizedGrossTD = fRealizedGrossTD
+		pfRealizedNetTD = fRealizedNetTD
+		pfPremium = fPremium
+		pfCash = fCash
+		pfTransfersTD = fTransfersTD
+		pfCommissionsTD = fCommissionsTD
+		pfFeesTD = fFeesTD
+		pfInterestTD = fInterestTD
+		// Metrics
+		pdPutsTD = dPutsTD
+		pdCallsTD = dCallsTD
+		pdTradesTD = dTradesTD
+		pdOpenPositions = dOpenPositions
+		// Notional
+		pfOptionsNotionalSoldTD = fOptionsNotionalSoldTD
+		pfOptionsNotionalBoughtTD = fOptionsNotionalBoughtTD
+		pfEquityNotionalSoldTD = fEquityNotionalSoldTD
+		pfEquityNotionalBoughtTD = fEquityNotionalBoughtTD
+		pfFuturesNotionalSoldTD = fFuturesNotionalSoldTD
+		pfFuturesNotionalBoughtTD = fFuturesNotionalBoughtTD
+
 	}
 }
 
 func main() {
 	// Modes
 	stats := flag.Bool("stats", false, "print overall statistics")
+	cumulative := flag.Bool("cumulative", false, "print cumulative statistics")
 	printPL := flag.Bool("printpl", false, "print realized P&L per underlying")
 	positions := flag.Bool("positions", false, "print current positions")
 	chart := flag.Bool("chart", false, "create a chart of P&L")
 	daily := flag.Bool("daily", false, "create a CSV of daily balances")
-	cumulative := flag.Bool("cumulative", false, "print cumulative statistics")
 
 	// Modifiers
 	input := flag.String("input", "", "input csv file containing tastyworks transactions")
@@ -1746,6 +1834,7 @@ func main() {
 	chartNoCash := flag.Bool("chartnocash", false, "exclude cash from chart of P&L")
 	nofutures := flag.Bool("nofutures", false, "ignore all futures transactions")
 	ignoreacat := flag.Bool("ignoreacat", false, "ignore all ACAT transfers")
+	todate := flag.Bool("daily-todate", true, "include cumulative to-date columns in CSV")
 
 	flag.Parse()
 	if *input == "" {
@@ -1782,6 +1871,6 @@ func main() {
 		portfolio.PrintPositions()
 	}
 	if *daily {
-		dumpDaily(records, *ytd, *nofutures, *ignoreacat)
+		dumpDaily(records, *ytd, *nofutures, *ignoreacat, *todate)
 	}
 }
