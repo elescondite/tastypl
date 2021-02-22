@@ -287,6 +287,11 @@ func (t *transaction) parsePrice() decimal.Decimal {
 		}
 		at = len(prefix) - 1
 		contract := t.underlying[:len(t.underlying)-2]
+		if t.small {
+			// Smalls have 2 digit year, regular have 1. Sigh.
+			contract = t.underlying[:len(t.underlying)-3]
+		}
+
 		pointValue, ok := futuresPoints[contract]
 		if !ok {
 			glog.Fatalf("Don't know how much a point of %s is worth in %s", contract, t)
