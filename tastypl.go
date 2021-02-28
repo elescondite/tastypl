@@ -1502,7 +1502,6 @@ func dumpChart(records [][]string, ytd, nofutures, ignoreacat bool, nocash bool)
 	var adjRpl []float64
 	var premium []float64
 	var cash []float64
-	var netliq []float64
 	records = records[2:]
 	for i, record := range records {
 		//fmt.Println("----------------------------------->", record)
@@ -1558,9 +1557,6 @@ func dumpChart(records [][]string, ytd, nofutures, ignoreacat bool, nocash bool)
 			cash = append(cash, amount)
 		}
 		amount, _ = portfolio.cash.Sub(portfolio.premium).Float64()
-		eq, _ := equity.Float64()
-		eqd, _ := equityDiscount.Float64()
-		netliq = append(netliq, amount-eq-eqd)
 	}
 
 	graph := chart.Chart{
@@ -1623,11 +1619,6 @@ func dumpChart(records [][]string, ytd, nofutures, ignoreacat bool, nocash bool)
 				XValues: xv,
 				YValues: cash,
 			},
-			chart.TimeSeries{
-				Name:    "Net Liquidation",
-				XValues: xv,
-				YValues: netliq,
-			},
 		},
 	}
 	graph.Elements = []chart.Renderable{
@@ -1674,7 +1665,7 @@ func dumpDaily(records [][]string, ytd, nofutures, ignoreacat bool, exportTD boo
 	fmt.Print("Date,RealizedGross,RealizedNet,Premium,Cash,Transfers,Commissions,Fees,Interest,Puts,Calls,Trades,OpenPositions,Equity,EquityDiscount,EquityPositions")
 	fmt.Print(",OptionsNotionalSold,OptionsNotionalBought,EquityNotionalSold,EquityNotionalBought,FuturesNotionalSold,FuturesNotionalBought")
 	if exportTD {
-		fmt.Print(",RealizedGrossTD,RealizedNetTD,PremiumTD,CashTD,NetLiqTD,TransfersTD,CommissionsTD,FeesTD,InterestTD,PutsTD,CallsTD,TradesTD,OpenPositionsTD,EquityTD,EquityDiscountTD,EquityPositionsTD")
+		fmt.Print(",RealizedGrossTD,RealizedNetTD,PremiumTD,CashTD,TransfersTD,CommissionsTD,FeesTD,InterestTD,PutsTD,CallsTD,TradesTD,OpenPositionsTD,EquityTD,EquityDiscountTD,EquityPositionsTD")
 		fmt.Print(",OptionsNotionalSoldTD,OptionsNotionalBoughtTD,EquityNotionalSoldTD,EquityNotionalBoughtTD,FuturesNotionalSoldTD,FuturesNotionalBoughtTD")
 	}
 	fmt.Println()
@@ -1721,8 +1712,6 @@ func dumpDaily(records [][]string, ytd, nofutures, ignoreacat bool, exportTD boo
 		fRealizedNetTD, _ := portfolio.rpl.Add(portfolio.comms).Add(portfolio.fees).Add(portfolio.intrs).Float64()
 		fPremium, _ := portfolio.premium.Float64()
 		fCash, _ := portfolio.cash.Float64()
-		fNetLiq, _ := portfolio.cash.Sub(portfolio.premium).Float64()
-		fNetLiq = fNetLiq - fEquity - fEquityDiscount
 		fTransfersTD, _ := portfolio.moneyMov.Float64()
 		fCommissionsTD, _ := portfolio.comms.Float64()
 		fFeesTD, _ := portfolio.fees.Float64()
@@ -1770,12 +1759,11 @@ func dumpDaily(records [][]string, ytd, nofutures, ignoreacat bool, exportTD boo
 		)
 
 		if exportTD {
-			fmt.Printf(",%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%d,%d,%d,%d,%0.2f,%0.2f,%d,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f",
+			fmt.Printf(",%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%d,%d,%d,%d,%0.2f,%0.2f,%d,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f",
 				fRealizedGrossTD,
 				fRealizedNetTD,
 				fPremium,
 				fCash,
-				fNetLiq,
 				fTransfersTD,
 				fCommissionsTD,
 				fFeesTD,
