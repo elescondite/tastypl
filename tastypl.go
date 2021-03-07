@@ -54,6 +54,7 @@ type transaction struct {
 	option bool // or non-option (such as future/equity) if false
 	future bool // true if futures (or options on futures), else equity or index
 	small  bool // true if small exchange future (future must be true as well)
+	crypto bool // true if cryptocurrency
 	mtm    bool // mark-to-market daily settlement for futures
 	call   bool // or put if false
 	long   bool // or short if false
@@ -166,6 +167,14 @@ var (
 		"/S30Y",
 		// Coming soon...
 		"/SMGO",
+	}
+
+	// Cryptocurrencies. Array not used at the moment.
+	cryptoSymbols = []string{
+		"BCH/USD",
+		"BTC/USD",
+		"ETH/USD",
+		"LTC/USD",
 	}
 )
 
@@ -426,6 +435,8 @@ type portfolio struct {
 	equityNotionalBought  decimal.Decimal
 	futuresNotionalSold   decimal.Decimal
 	futuresNotionalBought decimal.Decimal
+	cryptoNotionalSold    decimal.Decimal
+	cryptoNotionalBought  decimal.Decimal
 
 	// Summary of realized P&L per underlying
 	rplPerUnderlying map[string]decimal.Decimal
@@ -719,6 +730,7 @@ func (p *portfolio) parseTransaction(i int, rec []string, ytd *bool) *transactio
 		option:      option,
 		future:      strings.HasPrefix(instrument, "Future"),
 		small:       strings.HasPrefix(instrument, "Future") && isSmallFuture(rec[3]),
+		crypto:      strings.HasPrefix(instrument, "Cryptocurrency"),
 		mtm:         mtm,
 		call:        call,
 		long:        long,
@@ -825,6 +837,12 @@ func (p *portfolio) handleTrade(tx *transaction, count bool) {
 				p.equityNotionalBought = p.equityNotionalBought.Add(tx.value)
 			} else {
 				p.equityNotionalSold = p.equityNotionalSold.Add(tx.value)
+			}
+		} else if tx.crypto {
+			if tx.long {
+				p.cryptoNotionalBought = p.cryptoNotionalBought.Add(tx.value)
+			} else {
+				p.cryptoNotionalSold = p.cryptoNotionalSold.Add(tx.value)
 			}
 		}
 	}
@@ -1477,6 +1495,10 @@ func (p *portfolio) PrintCumulativeStats() {
 		fmt.Printf("  Open:             %13s\n", notionalOpen.StringFixed(2))
 		fmt.Printf("  Net:              %13s\n", diff.Sub(notionalOpen).StringFixed(2))
 	}
+	fmt.Printf("Crypto sold:        %13s\n", p.cryptoNotionalSold.StringFixed(2))
+	fmt.Printf("Crypto bought:      %13s\n", p.cryptoNotionalBought.StringFixed(2))
+	diff = p.cryptoNotionalSold.Add(p.cryptoNotionalBought)
+	fmt.Printf("  Difference:       %13s\n", diff.StringFixed(2))
 }
 
 func (p *portfolio) PrintPL() {
@@ -1656,6 +1678,8 @@ func dumpDaily(records [][]string, ytd, nofutures, ignoreacat bool, exportTD boo
 	var pfEquityNotionalBoughtTD float64
 	var pfFuturesNotionalSoldTD float64
 	var pfFuturesNotionalBoughtTD float64
+	var pfCryptoNotionalSoldTD float64
+	var pfCryptoNotionalBoughtTD float64
 
 	// We don't really have a good way to track stats step by step, so rebuild the
 	// portfolio by adding the transactions one by one for now.
@@ -1663,10 +1687,10 @@ func dumpDaily(records [][]string, ytd, nofutures, ignoreacat bool, exportTD boo
 	records = records[2:]
 
 	fmt.Print("Date,RealizedGross,RealizedNet,Premium,Cash,Transfers,Commissions,Fees,Interest,Puts,Calls,Trades,OpenPositions,Equity,EquityDiscount,EquityPositions")
-	fmt.Print(",OptionsNotionalSold,OptionsNotionalBought,EquityNotionalSold,EquityNotionalBought,FuturesNotionalSold,FuturesNotionalBought")
+	fmt.Print(",OptionsNotionalSold,OptionsNotionalBought,EquityNotionalSold,EquityNotionalBought,FuturesNotionalSold,FuturesNotionalBought,CryptoNotionalSold,CryptoNotionalBought")
 	if exportTD {
 		fmt.Print(",RealizedGrossTD,RealizedNetTD,PremiumTD,CashTD,TransfersTD,CommissionsTD,FeesTD,InterestTD,PutsTD,CallsTD,TradesTD,OpenPositionsTD,EquityTD,EquityDiscountTD,EquityPositionsTD")
-		fmt.Print(",OptionsNotionalSoldTD,OptionsNotionalBoughtTD,EquityNotionalSoldTD,EquityNotionalBoughtTD,FuturesNotionalSoldTD,FuturesNotionalBoughtTD")
+		fmt.Print(",OptionsNotionalSoldTD,OptionsNotionalBoughtTD,EquityNotionalSoldTD,EquityNotionalBoughtTD,FuturesNotionalSoldTD,FuturesNotionalBoughtTD,CryptoNotionalSoldTD,CryptoNotionalBoughtTD")
 	}
 	fmt.Println()
 	for i, record := range records {
@@ -1728,13 +1752,15 @@ func dumpDaily(records [][]string, ytd, nofutures, ignoreacat bool, exportTD boo
 		fEquityNotionalBoughtTD, _ := portfolio.equityNotionalBought.Float64()
 		fFuturesNotionalSoldTD, _ := portfolio.futuresNotionalSold.Float64()
 		fFuturesNotionalBoughtTD, _ := portfolio.futuresNotionalBought.Float64()
+		fCryptoNotionalSoldTD, _ := portfolio.cryptoNotionalSold.Float64()
+		fCryptoNotionalBoughtTD, _ := portfolio.cryptoNotionalBought.Float64()
 		//
 		fmt.Printf("%d-%02d-%02d",
 			date.Year(), date.Month(), date.Day(),
 		)
 
 		// Print daily activity
-		fmt.Printf(",%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%d,%d,%d,%d,%0.2f,%0.2f,%d,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f",
+		fmt.Printf(",%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%d,%d,%d,%d,%0.2f,%0.2f,%d,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f",
 			fRealizedGrossTD-pfRealizedGrossTD,
 			fRealizedNetTD-pfRealizedNetTD,
 			fPremium-pfPremium,
@@ -1756,10 +1782,12 @@ func dumpDaily(records [][]string, ytd, nofutures, ignoreacat bool, exportTD boo
 			fEquityNotionalBoughtTD-pfEquityNotionalBoughtTD,
 			fFuturesNotionalSoldTD-pfFuturesNotionalSoldTD,
 			fFuturesNotionalBoughtTD-pfFuturesNotionalBoughtTD,
+			fCryptoNotionalSoldTD-pfCryptoNotionalSoldTD,
+			fCryptoNotionalBoughtTD-pfCryptoNotionalBoughtTD,
 		)
 
 		if exportTD {
-			fmt.Printf(",%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%d,%d,%d,%d,%0.2f,%0.2f,%d,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f",
+			fmt.Printf(",%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%d,%d,%d,%d,%0.2f,%0.2f,%d,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f,%0.2f",
 				fRealizedGrossTD,
 				fRealizedNetTD,
 				fPremium,
@@ -1781,6 +1809,8 @@ func dumpDaily(records [][]string, ytd, nofutures, ignoreacat bool, exportTD boo
 				fEquityNotionalBoughtTD,
 				fFuturesNotionalSoldTD,
 				fFuturesNotionalBoughtTD,
+				fCryptoNotionalSoldTD,
+				fCryptoNotionalBoughtTD,
 			)
 		}
 		fmt.Println()
@@ -1808,6 +1838,8 @@ func dumpDaily(records [][]string, ytd, nofutures, ignoreacat bool, exportTD boo
 		pfEquityNotionalBoughtTD = fEquityNotionalBoughtTD
 		pfFuturesNotionalSoldTD = fFuturesNotionalSoldTD
 		pfFuturesNotionalBoughtTD = fFuturesNotionalBoughtTD
+		pfCryptoNotionalSoldTD = fCryptoNotionalSoldTD
+		pfCryptoNotionalBoughtTD = fCryptoNotionalBoughtTD
 
 	}
 }

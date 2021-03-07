@@ -7,6 +7,54 @@ tastypl is a [Go](https://golang.org/) program that imports your
 statistics to help you track your performance and positions.  The main
 motivation behind it was to track the net credit after rolls.
 
+## Command Line Options
+
+``` 
+go run tastypl -input inputfile [options]
+
+Output Options
+  -chart
+    	create a chart of P&L
+  -chartnocash
+    	exclude cash from chart of P&L
+  -cumulative
+    	print cumulative statistics
+  -daily
+    	create a CSV of daily balances
+  -daily-todate
+    	include cumulative to-date columns in CSV (default true)
+  -ignoreacat
+    	ignore all ACAT transfers
+  -input string
+    	input csv file containing tastyworks transactions
+  -nofutures
+    	ignore all futures transactions
+  -positions
+    	print current positions
+  -printpl
+    	print realized P&L per underlying
+  -stats
+    	print overall statistics
+  -ytd
+    	limit output to YTD transactions
+
+Logging Options
+  -alsologtostderr
+    	log to standard error as well as files
+  -log_backtrace_at value
+    	when logging hits line file:N, emit a stack trace
+  -log_dir string
+    	If non-empty, write log files in this directory
+  -logtostderr
+    	log to standard error instead of files
+  -stderrthreshold value
+    	logs at or above this threshold go to stderr
+  -v value
+    	log level for V logs
+  -vmodule value
+    	comma-separated list of pattern=N settings for file-filtered logging
+```	
+
 ## Demo
 
 On the tastyworks desktop app, go to the History tab, and under "transactions"
@@ -52,7 +100,7 @@ ROKU  (1 position) [RPL=122.00]
 
 The `-chart` option will generate a graph in `rpl.png` that looks like this:
 
-![Realized P/L over time](https://raw.githubusercontent.com/gotasty/tastypl/master/sample/rpl.png)
+![Realized P/L over time](https://raw.githubusercontent.com/elescondite/tastypl/master/sample/rpl.png)
 
 On the chart, "adjusted realized P/L" is the realized P/L net of commissions,
 fees, interest paid if any, etc.  Outstanding premium is the amount of premium
@@ -60,6 +108,13 @@ sold (if positive, bought if negative) at the price it was opened – the script
 does not track the mark of positions over time, only opening/closing prices,
 as it does not have access to any historical market data.  Cash on hand should
 match what is shown in tastyworks' account balance.
+
+## Daily Balances
+The `-daily` option will generate a CSV output with daily balances (something tastyworks is lacking). You should run tastypl with the `-daily` option by itself and redirect to a file to get a CSV file.
+
+The following fictional sample has had the rows and columns transposed to make it easier to the see the (almost 4 dozen!) output fields.
+
+![Realized P/L over time](https://raw.githubusercontent.com/elescondite/tastypl/master/sample/daily-csv.png)
 
 ## Disclaimers
 
