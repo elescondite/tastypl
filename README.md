@@ -7,6 +7,33 @@ tastypl is a [Go](https://golang.org/) program that imports your
 statistics to help you track your performance and positions.  The main
 motivation behind it was to track the net credit after rolls.
 
+NOTE: This repository is a fork of the orginal at [https://github.com/gotasty/tastypl](https://github.com/gotasty/tastypl) which has not been maintained in a while.
+
+## Getting Started
+
+Prerequisites: Git (https://git-scm.com/), Go (https://golang.org/)
+
+1. Clone the repository:
+```
+git clone https://github.com/elescondite/tastypl.git
+```
+2. Install the dependencies:
+
+``` 
+go env -w GO111MODULE=off
+go get github.com/Graeme22/go-chart
+go get github.com/golang/glog
+go get github.com/shopspring/decimal
+```
+
+3. Run the code on your CSV file (instructions on how to obtain below.)
+
+```
+go run tastypl.go -input yourcsvfile.csv -printpl -positions -chart
+```
+
+Note: On MacOS, the full path to the CSV file must be specified.
+
 ## Command Line Options
 
 ``` 
